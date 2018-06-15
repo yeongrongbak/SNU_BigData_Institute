@@ -13,7 +13,7 @@ The courses about Data Science that I have taken so far as follows.
 - 전자 상거래
 - 캡스톤 프로젝트 (교보생명보험)
 
-## 2. 카이스트 MOOC(Massive Open Online Course) 수강
+## 2. 카이스트 MOOC(Massive Open Online Course) 수강 (2018.04)
  
 - 인공지능 및 기계학습 개론 1
 - 인공지능 및 기계학습 개론 2
