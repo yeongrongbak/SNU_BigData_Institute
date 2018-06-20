@@ -17,6 +17,6 @@ The courses about Data Science that I have taken so far as follows.
  
 - 인공지능 및 기계학습 개론 1
 - 인공지능 및 기계학습 개론 2
-- 링크 (http://kooc.kaist.ac.kr/machinelearning1_17)
+- 링크 : http://kooc.kaist.ac.kr/machinelearning1_17
  
  
