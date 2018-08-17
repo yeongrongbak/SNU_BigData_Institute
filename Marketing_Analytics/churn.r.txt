@@ -1,0 +1,229 @@
+chdata = read.csv('D:\\Teaching\\MarketingAnalytics\\LectureNote\\Examples\\E06_ClassificationExample\\churn.data')
+chtest = read.csv('D:\\Teaching\\MarketingAnalytics\\LectureNote\\Examples\\E06_ClassificationExample\\churn.test')
+
+cnames = c("state","aclength","area","phonenumber","intlplan","vmailplan","nvmessage",
+           "daymin","daycalls","daycharge","evemin","evecalls","evecharge",
+           "nightmin","nightcalls","nightcharge","intmin","intcalls","intcharge","cscalls", "churn")
+
+#state: discrete
+#account length: continuous.
+#area code: continuous.
+#phone number: discrete.
+#international plan: discrete.
+#voice mail plan: discrete.
+#number vmail messages: continuous.
+#total day minutes: continuous.
+#total day calls: continuous.
+#total day charge: continuous.
+#total eve minutes: continuous.
+#total eve calls: continuous.
+#total eve charge: continuous.
+#total night minutes: continuous.
+#total night calls: continuous.
+#total night charge: continuous.
+#total intl minutes: continuous.
+#total intl calls: continuous.
+#total intl charge: continuous.
+#number customer service calls: continuous.
+
+
+colnames(chdata)=cnames
+colnames(chtest)=cnames
+
+
+chdata$state=NULL
+chdata$area=NULL
+chdata$phonenumber=NULL
+
+chtest$state=NULL
+chtest$area=NULL
+chtest$phonenumber=NULL
+
+
+## a function that computes the hit ratio of prediction
+
+pred.hit= function(predval,testdata,noprint=FALSE){
+  
+  r <- predval # variable1 in rows
+  c <- testdata # variable2 in columns
+  
+  # run cross tabulation
+  ctab <- xtabs(~r+c)
+  
+  # frequency table
+  table_f <- ctab
+  Total1 <- rowSums(ctab); table_f <- cbind(table_f, Total1)
+  Total2 <- colSums(table_f); table_f <- rbind(table_f, Total2)
+  
+  # percentage table
+  table_p <- prop.table(ctab)*100
+  Total1 <- rowSums(table_p); table_p <- cbind(table_p, Total1)
+  Total2 <- colSums(table_p); table_p <- rbind(table_p, Total2)
+  
+  # row percentage table
+  table_r <- prop.table(ctab, 1)*100; sum <- rowSums(table_r);
+  table_r <- cbind(table_r, sum)
+  
+  # col percentage table
+  table_c <- prop.table(ctab, 2)*100; sum <- colSums(table_c);
+  table_c <- rbind(table_c, sum);
+  
+  # print results
+  if(!noprint){
+    cat("Prediction (row) vs. Data (column) ", "\n")
+    cat("* Frequency", "\n"); print(table_f); cat("\n")
+    cat("* Percentage", "\n"); print(table_p, digits=3);cat("\n")
+    cat("* Row Percentage: Distribution of Data for each value of Prediction", "\n"); print(table_r, digits=3); cat("\n")
+    cat("* Column Percentage: Distribution of Prediction for each value of Data", "\n"); print(table_c, digits=3); cat("\n")
+  }
+  cat("Hit Ratio:", (sum(diag(table_p))-100), "\n")
+
+  precision = ctab[2,2] /(ctab[2,1]+ctab[2,2])
+  recall = ctab[2,2] /(ctab[2,2]+ctab[1,2])
+  f1measure = 2*precision*recall/(precision+recall)
+  cat("F1 measure", f1measure, "\n")
+
+  if(!noprint) return(table_f)
+}
+
+##############################################
+#
+# linear discriminant analysis
+#
+##############################################
+
+library(MASS)
+ldafit = lda(churn~.,chdata)
+ldatrainfit = predict(ldafit)
+
+ldapred = predict(ldafit, chtest)
+
+cat("Logistic Regresion prediction  \n")
+pred.hit(ldapred$class,chtest$churn)
+
+cutoff=0.5
+plot(ldapred$posterior[,2]~chtest$churn, col="lightblue", main="Prediction by Linear Discriminant", xlab="Churn Data (Test)", ylab="Probability of Churn")
+abline(h=cutoff)
+
+
+##############################################
+#
+# linear logistic regression 
+#
+##############################################
+
+nf = summary(chdata$churn)[1]  # number of False
+lgfit = glm(churn~.,chdata, family=binomial())
+tmpx = sort(lgfit$fitted.values,F)
+cutoff = (tmpx[nf]+tmpx[nf+1])/2
+
+#plot(lgfit$fitted.value~chdata$churn,col="lightblue", main="Logistic Regression Results", xlab="Churn Data (Training)", ylab="Probability of Churn")
+#lgtrainfit = (lgfit$fitted.value>cutoff)*1+1
+
+lgpred = predict(lgfit, chtest,type="response")
+plot(lgpred~chtest$churn,col="lightblue", main="Prediction by Logistic Regression", xlab="Churn Data (Test)", ylab="Probability of Churn")
+abline(h=cutoff)
+lgpredfit = lgpred>cutoff
+
+cat("Logistic Regresion prediction  \n")
+pred.hit(lgpredfit,chtest$churn)
+
+
+##############################################
+#
+# CART
+#
+##############################################
+
+library(tree)
+cartfit = tree(churn~.,chdata)
+plot(cartfit)
+text(cartfit,all=T, cex=0.7)
+title("CART Model Output")
+cartfitval = predict(cartfit)
+#plot(cartfitval[,2]~chdata$churn)  # need to check
+cartpred = predict(cartfit,chtest)
+cartpredclass = predict(cartfit,chtest,type="class")
+
+cat("CART prediction  \n")
+pred.hit(cartpredclass,chtest$churn)
+
+cutoff=0.5
+plot(cartpred[,2]~chtest$churn, col="lightblue", main="Prediction by CART", xlab="Churn Data (Test)", ylab="Probability of Churn")
+abline(h=cutoff)
+
+##############################################
+#
+# Neural Nets 
+#
+##############################################
+
+library(nnet)
+
+iniwts = c(118.85,  -0.01, -59.60,   8.88,   0.55,  -1.85,   0.00,   9.23,  -0.62,   0.00,   5.70,   0.00,   0.01,  -1.62,  -0.58,  -0.06,   0.74,   0.16,   0.57,  -3.29)
+nnfit1 = nnet(churn~.,chdata, size=1, decay =5e-4,maxit=1000, Wts=iniwts)
+#plot(nnfit1$fitted.values)
+#plot(nnfit1$fitted.values~chdata$churn)
+nnpred1 = factor(predict(nnfit1,chtest,type="class"))
+
+iniwts2=c(nnfit1$wts[1:18],nnfit1$wts[1:18],nnfit1$wts[19:20],nnfit1$wts[20])
+nnfit2 = nnet(churn~.,chdata, size=2, decay =5e-4,maxit=1000, Wts=iniwts2)
+#plot(nnfit2$fitted.values)
+#plot(nnfit2$fitted.values~chdata$churn)
+nnpred2 = factor(predict(nnfit2,chtest,type="class"))
+
+iniwts3=c(nnfit2$wts[1:36],nnfit2$wts[1:18],nnfit2$wts[37:39],nnfit2$wts[38]/10)
+nnfit3 = nnet(churn~.,chdata, size=3, decay =5e-4,maxit=1000, Wts=iniwts3)
+#plot(nnfit3$fitted.values)
+#plot(nnfit3$fitted.values~chdata$churn)
+nnpred3 = factor(predict(nnfit3,chtest,type="class"))
+
+
+iniwts4=c(nnfit3$wts[1:54],nnfit3$wts[1:18],nnfit3$wts[55:58],nnfit3$wts[56]/100)
+nnfit4 = nnet(churn~.,chdata, size=4, decay =5e-4,maxit=1000, Wts=iniwts4)
+#plot(nnfit4$fitted.values)
+#plot(nnfit4$fitted.values~chdata$churn)
+nnpred4 = factor(predict(nnfit4,chtest,type="class"))
+
+
+iniwts5=c(nnfit4$wts[1:72],nnfit4$wts[1:18],nnfit4$wts[73:77],nnfit4$wts[74]/100)
+nnfit5 = nnet(churn~.,chdata, size=5, decay =5e-4,maxit=1000, Wts=iniwts5)
+#plot(nnfit5$fitted.values)
+#plot(nnfit5$fitted.values~chdata$churn)
+nnpred5 = factor(predict(nnfit5,chtest,type="class"))
+
+
+pred.hit(nnpred1,chtest$churn,noprint=TRUE)
+pred.hit(nnpred2,chtest$churn,noprint=TRUE)
+pred.hit(nnpred3,chtest$churn,noprint=TRUE)
+pred.hit(nnpred4,chtest$churn,noprint=TRUE)
+pred.hit(nnpred5,chtest$churn,noprint=TRUE)
+
+cat("Neural Nets prediction  \n")
+pred.hit(nnpred4,chtest$churn)
+nnpred4val = predict(nnfit4,chtest,type="raw")
+cutoff=0.5
+plot(nnpred4val~chtest$churn, col="lightblue", main="Prediction  by Neural Nets", xlab="Churn Data (Test)", ylab="Probability of Churn")
+abline(h=cutoff)
+
+
+
+##############################################
+#
+# Support Vector Machine ; takes too much time when nobs>10000
+#
+##############################################
+
+library(e1071)
+
+svmfit = svm(churn~.,data=chdata,cost=1, probability=T)
+#plot(svmfit,data=chdata,aclength~daymin)
+
+svmfitval = predict(svmfit)
+svmpred = predict(svmfit,chtest,type="raw", probability=T)
+svmpredpr = attributes(svmpred)$probabilities
+
+cat("SVM prediction \n")
+pred.hit(svmpred,chtest$churn)
+plot(svmpredpr[,2]~chtest$churn, col="lightblue", main="Prediction  by SVM", xlab="Churn Data (Test)", ylab="Probability of Churn")
+abline(h=cutoff)
