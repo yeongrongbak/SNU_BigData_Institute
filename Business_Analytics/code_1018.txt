@@ -1,0 +1,178 @@
+## Cereals data
+setwd("F:/job/(1703)도시데이터사이언스/강의자료")
+cereals = read.csv("cereals.csv",header=T)
+names(cereals)
+summary(cereals)
+
+################################################
+
+# 변수 설명
+# name: 시리얼 이름
+# mfr: 시리얼 제조사
+# type: cold or hot
+# calories: 1회 제공량 당 칼로리
+# protein: 단백질 함량 (g)
+# fat: 지방 함량 (g)
+# sodium: 소금 함량 (mg)
+# fiber: 식이섬유 함량 (g)
+# carbo: 복합 탄수화물 함량 (g)
+# sugars: 설탕 함량 (g)
+# potass: 칼륨 함량 (mg)
+# vitamins: FDA 기춘치 대비 비타민, 미네랄 함량 (%)
+# shelf: 진열대 위치 (바닥부터 1,2,3층)
+# weight: 1회 제공량 당 무게 (oz)
+# cups: 1회 제공량 당 컵 단위 (eg. 1.5컵)
+# rating: 소비자 조사에 의한 시리얼 평점
+
+################################################
+
+dim(cereals)
+
+## 필요한 자료 선택
+# 사용할 변수: 칼로리, 단백질, 지방, 소금, 식이섬유, 복합 탄수화물, 설탕, 칼륨, 비타민
+
+cereals = cereals[, c("name","calories","protein","fat","sodium","fiber","carbo","sugars","potass","vitamins")]
+dim(cereals)
+
+## missing value가 있는 자료는 삭제
+
+cereals[!complete.cases(cereals),]
+cereals = cereals[complete.cases(cereals),]
+dim(cereals)
+length(which(is.na(cereals)))
+
+var_cereals = cereals[,-1]
+rownames(var_cereals) = cereals[,1]
+head(var_cereals,6)
+
+sqrt(diag(cov(var_cereals)))
+rsc_cereals = sapply(1:ncol(var_cereals), function(i) var_cereals[,i]/sd(var_cereals[,i]))
+dimnames(rsc_cereals) = dimnames(var_cereals)
+sqrt(diag(cov(rsc_cereals)))
+rsc_cereals = as.data.frame(rsc_cereals)
+
+
+#---- Clustering
+
+## 산포도 확인
+plot(var_cereals, pch = 19)
+
+##- 계층적 군집분석
+
+# 거리 측도 : 유클리디안, Minkowski, Maximum
+# Linkage : single, complete, centroid, average
+
+k1=3
+dist.E =dist(rsc_cereals)
+
+# 1. Euclidean dist., complete <- default option
+
+cluster.EC = hclust(dist.E) 
+plot(cluster.EC, main="Euclidean, complete", cex=1)
+groups = cutree(cluster.EC, k=k1) #군집 분할
+# draw dendogram with red borders around the k1 clusters
+rect.hclust(cluster.EC, k=k1, border="red")
+
+# 2. Euclidean dist., single linkage
+
+cluster.ES = hclust(dist.E, method="single")
+plot(cluster.ES, main="Euclidean, single")
+groups = cutree(cluster.ES, k=k1)
+# draw dendogram with red borders around the k1 clusters
+rect.hclust(cluster.ES, k=k1, border="red")
+
+# 3. Euclidean dist., average linkage
+
+cluster.EA = hclust(dist.E, method="average")
+plot(cluster.EA, main="Euclidean, average")
+groups = cutree(cluster.EA, k=k1)
+# draw dendogram with red borders around the k1 clusters
+rect.hclust(cluster.EA, k=k1, border="red")
+
+# 4. Maximum dist., average linkage
+
+dist.M = dist(rsc_cereals, method="maximum")
+cluster.MA = hclust(dist.M, method="average")
+plot(cluster.MA, main="Maximum, average")
+groups = cutree(cluster.MA, k=k1)
+# draw dendogram with red borders around the k1 clusters
+rect.hclust(cluster.MA, k=k1, border="red")
+
+
+## 군집 분할
+clusters = cutree(cluster.EC, h=100) #덴드로그램의 높이 조절
+clusters[1:10]
+clusters = cutree(cluster.EC, k=2:6) #군집 수 조절
+head(clusters)
+
+
+plot(cluster.EC, main="Euclidean, complete")
+groups = cutree(cluster.EC, h=100)
+rect.hclust(cluster.EC, h=100, border="red")
+
+
+## 군집 내 비교 (k=4) using Euclidean dist. and complete linkage
+
+
+plot(cluster.EC, main="Euclidean, complete", cex=1)
+groups = cutree(cluster.EC, k=4) #군집 분할
+# draw dendogram with red borders around the k1 clusters
+rect.hclust(cluster.EC, k=4, border="red")
+
+for (i in 1:4){
+  cat(i,'- th cluster \n')
+  tmp = rbind(round(colMeans(rsc_cereals[which(groups==i),]), 3),
+              round(diag(cov(rsc_cereals[which(groups==i),])), 3)); rownames(tmp) = c("Mean","Var")
+  print(tmp)
+}
+
+table(groups)
+
+##- K-means clustering
+
+library(cluster)
+cluster.K4 = kmeans(rsc_cereals, centers=4)
+cluster.K4
+
+plot(rsc_cereals, col=cluster.K4$cluster) #k-means
+
+
+set.seed(1)
+cluster1= kmeans(rsc_cereals, centers=4)
+set.seed(10)
+cluster2= kmeans(rsc_cereals, centers=4)
+
+table(cluster1$cluster, cluster2$cluster)
+
+## 군집 수 K 정하기
+wss= kmeans(rsc_cereals, centers=1, nstart = 10)$tot.withinss
+for (i in 2:15) wss[i] = kmeans(rsc_cereals,centers=i, nstart = 10)$tot.withinss
+plot(1:15, wss, type="b", xlab="Number of Clusters",
+     ylab="Within groups sum of squares",
+     main = "Total within SS for varying K") 
+
+## 다차원 척도법
+cmds = cmdscale(dist.E, k = 2)
+head(cmds)
+plot(cmds, xlab = "coord 1", ylab = "coord 2", main = "MDS", type = "n")
+text(cmds, labels = rownames(cmds), cex=.8)
+
+
+## 다차원 척도법을 이용한 군집분석 시각화
+k1 = 4
+
+groups = cutree(cluster.EC, k=k1)
+plot(cmds, xlab = "coord 1", ylab = "coord 2", main = "MDS", type = "n")
+text(cmds, labels = rownames(cmds), cex=.8, col=groups)
+
+groups = cutree(cluster.ES, k=k1)
+plot(cmds, xlab = "coord 1", ylab = "coord 2", main = "MDS", type = "n")
+text(cmds, labels = rownames(cmds), cex=.8, col=groups)
+
+groups = cutree(cluster.EA, k=k1)
+plot(cmds, xlab = "coord 1", ylab = "coord 2", main = "MDS", type = "n")
+text(cmds, labels = rownames(cmds), cex=.8, col=groups)
+
+plot(cmds, xlab = "coord 1", ylab = "coord 2", main = "MDS", type = "n")
+text(cmds, labels = rownames(cmds), cex=.8, col=cluster.K4$cluster)
+
